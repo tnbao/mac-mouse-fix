@@ -36,8 +36,8 @@ typedef enum {
 /// Bundles and Bezelservices
 
 /// Added some x's to the bundleID. See notes.md for context.
-#define kMFBundleIDApp      @"com.nuebling.mac-mouse-fix"
-#define kMFBundleIDHelper   @"com.nuebling.mac-mouse-fix.helper"
+#define kMFBundleIDApp      @"com.tnbao.mac-mouse-fix"
+#define kMFBundleIDHelper   @"com.tnbao.mac-mouse-fix.helper"
 
 //#define kMFRelativeAccomplicePath           @"Contents/Library/LaunchServices/Mac Mouse Fix Accomplice"
 #define kMFRelativeHelperAppPath            @"Contents/Library/LoginItems/Mac Mouse Fix Helper.app"
@@ -223,7 +223,7 @@ typedef enum {
     kMFSHMoveLeftASpace = 79,
     kMFSHMoveRightASpace = 81,
     kMFSHCycleThroughWindows = 27,
-    
+
     kMFSHSwitchToDesktop1 = 118,
     kMFSHSwitchToDesktop2 = 119,
     kMFSHSwitchToDesktop3 = 120,
@@ -240,22 +240,22 @@ typedef enum {
     kMFSHSwitchToDesktop14 = 131,
     kMFSHSwitchToDesktop15 = 132,
     kMFSHSwitchToDesktop16 = 133,
-    
+
     kMFSHSpotlight = 64,
     kMFSHSiri = 176,
     kMFSHNotificationCenter = 163,
     kMFSHToggleDoNotDisturb = 175,
-    
+
     /// These shk are assigned to some function keys on apple keyboards
-    
+
     kMFFunctionKeySHKMissionControl = 108,
     kMFFunctionKeySHKDictation = 186,
     kMFFunctionKeySHKSpotlight = 187,
     kMFFunctionKeySHKSwitchKeyboard = 188,
     kMFFunctionKeySHKDoNotDisturb = 189,
-    
+
     kMFFunctionKeySHKLaunchpad = 173,
-    
+
 } MFSymbolicHotkey;
 
 /// SystemEvents
@@ -266,7 +266,7 @@ typedef enum {
 typedef enum {
 
     /// These types are found in the `data1` field, shifted left by 16 bits
-    
+
     kMFSystemEventTypeBrightnessDown = 3,
     kMFSystemEventTypeBrightnessUp = 2,
     kMFSystemEventTypeMediaBack = 16 + 4,
@@ -275,20 +275,20 @@ typedef enum {
     kMFSystemEventTypeVolumeMute = 7,
     kMFSystemEventTypeVolumeDown = 1,
     kMFSystemEventTypeVolumeUp = 0,
-    
+
     kMFSystemEventTypeKeyboardBacklightDown = 22,
     kMFSystemEventTypeKeyboardBacklightUp = 21,
-    
+
     kMFSystemEventTypePower = 6,
     kMFSystemEventTypeCapsLock = 4, /// Should probably disable remapping to this. Doesn't work
-    
+
 } MFSystemDefinedEventType;
 
 enum {
     /// More definitions for the `data1` field
 
     kMFSystemDefinedEventPressedMask = 1 << 8, ///  0 is keyDown, 1 is keyUp
-    kMFSystemDefinedEventBase = (1 << 9) | (1 << 11), /// These two bits are always set    
+    kMFSystemDefinedEventBase = (1 << 9) | (1 << 11), /// These two bits are always set
 };
 
 // Mosue Buttons
@@ -309,9 +309,9 @@ typedef enum {
 /// Most CGEventFields we discovered aren't documented here but are indirectly documented in the touchSimulator classes
 
 typedef CF_ENUM(uint32_t, MFCGEventField) {
-    
+
     kMFCGEventFieldSenderID = 87,
-    
+
 };
 
 @end
