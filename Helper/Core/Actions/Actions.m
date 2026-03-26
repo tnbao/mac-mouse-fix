@@ -255,4 +255,8 @@ static void postKeyboardShortcut(CGKeyCode keyCode, CGSModifierFlags modifierFla
     CFRelease(modEvent);
 }
 
++ (void)executeKeyboardShortcutWithKeycode:(CGKeyCode)keyCode modifierFlags:(uint32_t)modifierFlags {
+    postKeyboardShortcut(keyCode, (CGSModifierFlags)modifierFlags);
+}
+
 @end

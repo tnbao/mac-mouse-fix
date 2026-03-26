@@ -164,6 +164,10 @@ import Cocoa
             } else if modifiers.effectMod == kMFScrollEffectModificationNone {
             } else if modifiers.effectMod == kMFScrollEffectModificationAddModeFeedback {
                 /// We don't wanna scroll at all in this case but I don't think it makes a difference.
+            } else if modifiers.effectMod == kMFScrollEffectModificationKeyboardShortcut {
+                /// Keyboard shortcut is handled in Scroll.m before scroll events are sent. No scroll config changes needed.
+            } else if modifiers.effectMod == kMFScrollEffectModificationOneShotAction {
+                /// OneShotAction is handled in Scroll.m before scroll events are sent. No scroll config changes needed.
             } else {
                 assert(false);
             }

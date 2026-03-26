@@ -39,6 +39,16 @@
 
 @implementation Scroll
 
+#pragma mark - Helper functions
+
+static MFDirection directionFromString(NSString *dirStr) {
+    if ([dirStr isEqualToString:@"up"]) return kMFDirectionUp;
+    if ([dirStr isEqualToString:@"down"]) return kMFDirectionDown;
+    if ([dirStr isEqualToString:@"left"]) return kMFDirectionLeft;
+    if ([dirStr isEqualToString:@"right"]) return kMFDirectionRight;
+    return kMFDirectionNone;
+}
+
 #pragma mark - Variables - static
 
 static CFMachPortRef _eventTap;
@@ -56,6 +66,8 @@ static AXUIElementRef _systemWideAXUIElement; // TODO: should probably move this
 #pragma mark - Variables - dynamic
 
 static MFScrollModificationResult _modifications;
+static CFTimeInterval _lastOneShotActionTime; /// Timestamp of last oneshot action fire (for debounce)
+static const CFTimeInterval kOneShotActionDebounceInterval = 0.5; /// Debounce interval in seconds
 static ScrollConfig *_scrollConfig;
 static MFScrollAnimationCurveParameters *_animationParams;
 static ScrollAnalysisResult _lastScrollAnalysisResult;
@@ -395,7 +407,50 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
     ///  -> With user settings etc. applied
     
     scrollDirection = [ScrollUtility directionForInputAxis:inputAxis inputDelta:scrollDelta invertSetting:_scrollConfig.u_invertDirection horizontalModifier:(_modifications.effectMod == kMFScrollEffectModificationHorizontalScroll)]; /// Why do we need to get the scrollDirection again? We already calculated it during the "preliminary scrollAnalysis". Can it ever change betweent he 2 times we calculate it?
-    
+
+    /// Handle keyboard shortcut effect modification (legacy path)
+    if (_modifications.effectMod == kMFScrollEffectModificationKeyboardShortcut) {
+
+        NSString *configuredDirection = ScrollModifiers.keyboardShortcutDirection;
+        MFDirection requiredDirection = directionFromString(configuredDirection);
+
+        if (requiredDirection == kMFDirectionNone || scrollDirection == requiredDirection) {
+            CFTimeInterval now = CACurrentMediaTime();
+            if (now - _lastOneShotActionTime > kOneShotActionDebounceInterval) {
+                CGKeyCode keyCode = (CGKeyCode)ScrollModifiers.keyboardShortcutKeycode;
+                uint32_t flags = (uint32_t)ScrollModifiers.keyboardShortcutFlags;
+                [Actions executeKeyboardShortcutWithKeycode:keyCode modifierFlags:flags];
+                _lastOneShotActionTime = now;
+            }
+        }
+        return;
+    }
+
+    /// Handle oneshot action effect modification (direction + any action type)
+    if (_modifications.effectMod == kMFScrollEffectModificationOneShotAction) {
+
+        NSArray *directionActions = (NSArray *)ScrollModifiers.directionActions;
+        if (directionActions) {
+            /// Multi-direction format: iterate all direction→action pairs
+            for (NSDictionary *entry in directionActions) {
+                NSString *configuredDirection = entry[kMFModifiedScrollDictKeyDirection];
+                MFDirection requiredDirection = directionFromString(configuredDirection);
+                if (requiredDirection == kMFDirectionNone || scrollDirection == requiredDirection) {
+                    CFTimeInterval now = CACurrentMediaTime();
+                    if (now - _lastOneShotActionTime > kOneShotActionDebounceInterval) {
+                        NSDictionary *actionDict = entry[kMFModifiedScrollDictKeyOneShotActionDict];
+                        if (actionDict) {
+                            [Actions executeActionArray:@[actionDict] phase:kMFActionPhaseCombined];
+                        }
+                        _lastOneShotActionTime = now;
+                    }
+                    break;
+                }
+            }
+        }
+        return;
+    }
+
     /// Run full scrollAnalysis
     ScrollAnalysisResult scrollAnalysisResult = [ScrollAnalyzer updateWithTickOccuringAt:tickTS direction:scrollDirection config:_scrollConfig];
 

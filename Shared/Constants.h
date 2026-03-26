@@ -122,6 +122,7 @@ typedef NSString*                                                       MFString
 #define kMFRemapsKeyTrigger                     @"trigger"
 #define kMFRemapsKeyModificationPrecondition    @"modifiers"
 #define kMFRemapsKeyEffect                      @"effect"
+#define kMFRemapsKeyDirection                   @"direction"
 
 #pragma mark - Remaps dict
 
@@ -165,6 +166,14 @@ typedef NSString*                                                       MFString
 #define kMFModifiedScrollEffectModificationTypeRotate                                       @"rotate"
 #define kMFModifiedScrollEffectModificationTypeCommandTab                                   @"commandTab"
 #define kMFModifiedScrollEffectModificationTypeAddModeFeedback                              @"addModeScroll"
+#define kMFModifiedScrollEffectModificationTypeKeyboardShortcut                             @"keyboardShortcut"
+#define kMFModifiedScrollEffectModificationTypeOneShotAction                                @"oneShotAction"
+// Keys within modified scroll/drag dict for oneshot action with direction
+#define kMFModifiedScrollDictKeyKeyboardShortcutKeycode                                     @"keycode"
+#define kMFModifiedScrollDictKeyKeyboardShortcutFlags                                       @"flags"
+#define kMFModifiedScrollDictKeyDirection                                                   @"direction"
+#define kMFModifiedScrollDictKeyOneShotActionDict                                           @"oneShotActionDict"
+#define kMFModifiedScrollDictKeyDirectionActions                                            @"directionActions"
 
 // Oneshot Actions
 // TODO: Used to be named ActionDict... Rename to OneShot..., or OneShotDict

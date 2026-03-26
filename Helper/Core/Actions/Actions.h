@@ -8,6 +8,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <CoreGraphics/CoreGraphics.h>
 #import "Constants.h"
 #import "DisableSwiftBridging.h"
 
@@ -22,6 +23,7 @@ typedef enum {
 @interface Actions : NSObject
 
 + (void)executeActionArray:(MF_SWIFT_UNBRIDGED(NSArray *))actionArray phase:(MFActionPhase)phase NS_REFINED_FOR_SWIFT;
++ (void)executeKeyboardShortcutWithKeycode:(CGKeyCode)keyCode modifierFlags:(uint32_t)modifierFlags;
 
 @end
 
