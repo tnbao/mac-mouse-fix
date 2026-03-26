@@ -30,5 +30,8 @@ xcuserdata/
 # !Mouse Fix.xcodeproj/xcuserdata/Noah.xcuserdatad/xcschemes/*
 # Mouse Fix.xcodeproj/xcuserdata/Noah.xcuserdatad/xcdebugger/*
 
+# Build
+build/
+
 # Claude
 .claude/*.local.*
