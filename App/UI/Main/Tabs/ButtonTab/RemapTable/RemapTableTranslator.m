@@ -214,7 +214,6 @@ static NSArray *getOneShotEffectsTable(NSDictionary *rowDict) {
         },
         @{@"ui": MFLocalizedString(@"effect.click.secondary", @""),
           @"tool": MFLocalizedString(@"effect.click.secondary.hint", @""),
-          @"hideable": @YES,
           @"dict": @{
               kMFActionDictKeyType: kMFActionDictTypeMouseButtonClicks,
               kMFActionDictKeyMouseButtonClicksVariantButtonNumber: @2,

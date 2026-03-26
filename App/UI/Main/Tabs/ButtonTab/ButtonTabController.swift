@@ -665,19 +665,20 @@ import Foundation
         }
     }
     
-    /// Ignore MB1 & MB2
+    /// Ignore MB1
     ///     TODO: Use format strings and shared functions from UIStrings.m to obtain button names
 
     override func mouseUp(with event: NSEvent) {
-        
+
         if !pointerIsInsideAddField { return }
-        
+
         Toasts.showSimpleToast(name: "k-forbidden-capture-toast.1")
     }
+    /// Suppress default right-click context menu so the Helper's event tap can handle it for AddMode
+    override func rightMouseDown(with event: NSEvent) {
+        /// Do nothing — let the Helper's CGEvent tap handle the right-click
+    }
     override func rightMouseUp(with event: NSEvent) {
-        
-        if !pointerIsInsideAddField { return }
-        
-        Toasts.showSimpleToast(name: "k-forbidden-capture-toast.2")
+        /// Do nothing — let the Helper's CGEvent tap handle the right-click
     }
 }

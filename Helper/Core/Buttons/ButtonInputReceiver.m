@@ -31,7 +31,7 @@ static CFMachPortRef _eventTap;
 
 + (void)load_Manual {
     registerInputCallback();
-    _buttonParseBlacklist = @[@(1),@(2)]; /// Ignore inputs from left and right mouse buttons
+    _buttonParseBlacklist = @[@(1)]; /// Ignore inputs from left mouse button only (right click is now remappable)
 }
 
 + (void)start {
@@ -56,9 +56,8 @@ static void registerInputCallback() {
     ///     Edit: will just see what happens when we turn it off.
     
     CGEventMask mask =
-    CGEventMaskBit(kCGEventOtherMouseDown) | CGEventMaskBit(kCGEventOtherMouseUp);
-//    | CGEventMaskBit(kCGEventLeftMouseDown) | CGEventMaskBit(kCGEventLeftMouseUp)
-//    | CGEventMaskBit(kCGEventRightMouseDown) | CGEventMaskBit(kCGEventRightMouseUp);
+    CGEventMaskBit(kCGEventOtherMouseDown) | CGEventMaskBit(kCGEventOtherMouseUp)
+    | CGEventMaskBit(kCGEventRightMouseDown) | CGEventMaskBit(kCGEventRightMouseUp);
 
     /// Create tap
     _eventTap = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault, mask, eventTapCallback, NULL);
@@ -120,7 +119,7 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
     
     /// Get info from cgEvent
     NSUInteger buttonNumber = CGEventGetIntegerValueField(event, kCGMouseEventButtonNumber) + 1;
-    BOOL mouseDown = CGEventGetIntegerValueField(event, kCGMouseEventPressure) != 0;
+    BOOL mouseDown = (type == kCGEventOtherMouseDown || type == kCGEventRightMouseDown || type == kCGEventLeftMouseDown);
     
     /// Filter buttons
     if ([_buttonParseBlacklist containsObject:@(buttonNumber)]) return event;
