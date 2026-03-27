@@ -15,37 +15,12 @@ import CryptoKit
     /// -> This class retrieves instances of the `MFLicenseState` dataclass
     
     static func get_Preliminary(_callingFunc: String = #function) -> MFLicenseState {
-        
-        /// This is a quick, preliminary way to get the licenseState, that's intended to render the UI immediately upon app-startup with probably-correct data.
-        /// Note:
-        ///     We set `enableOfflineValidation: false`when getting the cached licenseState so we don't have to retrieve the actual `licenseKey` and `deviceUID` here. I guess as an optimization? Or minimization of shared state to avoid race conditions? Not totally sure this makes sense.
-        ///         This could lead to UI weirdness if we end up in a situation where the preliminary cache access always says the app .isLicensed but the subsequent validated cache access always says that  .isLicensed == false. We are trying to avoid this by deleting the cache after the offline validation fails. [Feb 2025]
-        ///         To avoid such UI weirdness, the goal should be to keep the result of `get_Preliminary()` in sync with `get()` as much as feasible.
-        
-        let result = self.licenseStateFromCache(licenseKey: "", deviceUID: nil, enableOfflineValidation: false) ??
-                     self.licenseStateFromFallback
-        
-        DDLogInfo("GetLicenseState.get_Preliminary(): \(result)\ncaller: \(_callingFunc)")
-        
-        return result
+        return MFLicenseState(isLicensed: true, freshness: kMFValueFreshnessFresh, licenseTypeInfo: MFLicenseTypeInfoForce())
     }
     
     public static func get(_callingFunc: String = #function) async -> MFLicenseState { assert(Thread.isMainThread)
-        
-        /// This function determines the current licenseState of the application.
-        ///     To do this, it checks the `licenseServer`, `cache`, `fallback` values, and `special conditions`
-        ///
-        /// Discussion:
-        ///     On offline validation:
-        ///         This function supports offline validation! It will first try to retrieve the `MFLicenseState` from a cache - validating it against the licenseKey using a hash. Only if that fails will it make an internet connection to validate the license. (As of Oct 2024)
-        ///         For a basic explanation of our offline-validation architecture, read `GetLicenseConfig.licenseConfigFromServer()`
-    
-        ///     On thread safety: [Oct 2024]
-        ///         This function accesses the following shared state: 1. `SecureStorage` values 2. cached values (which are stored in `config.plist`).
-        ///             > As long as `Config` and `SecureStorage` accesses are thread safe, I thinkk this function should be relatively thread-safe, too?  In that case, the only race-condition I can see is that we might unnecessarily hit the server multiple times if this function is called multiple times before the cache can be filled. But that wouldn't be catastrophic.
-        ///          > Otherwise we might want to ensure that all this code is always running on the same thread/queue, (probably main thread would be fine) or if that's not possible - use locks. (Update: Locks can't be used in async contexts in Swift, but the Swift package `groue/Semaphore` - which we discussed elsewhere - might fix this.)
-        ///          Update: [Feb 2025] We're now using @MainActor to run all the licensing code on the main thread. Why? – I think this might help prevent race conditions. However, while this code `await`s, the shared state could still change under us, so not sure how much it helps.
-        
+        return MFLicenseState(isLicensed: true, freshness: kMFValueFreshnessFresh, licenseTypeInfo: MFLicenseTypeInfoForce())
+
         var result: MFLicenseState?
         
         /// Check if the license key is valid
