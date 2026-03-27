@@ -174,6 +174,9 @@ static ModifiedDragState _drag;
             _drag.originOffset = (Vector){0};
             _drag.activationState = kMFModifiedInputActivationStateInitialized;
             _drag.isSuspended = NO;
+            /// Enable the mouse-moved event tap so drag movement is tracked
+            CGEventTapEnable(_drag.eventTap, true);
+            DDLogDebug(@"\nEnabled drag eventTap for oneShotAction");
             return;
         }
 
