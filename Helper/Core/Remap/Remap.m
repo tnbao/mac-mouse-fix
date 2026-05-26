@@ -231,6 +231,43 @@ static NSDictionary *_remaps;
                 effect = @[effect];
                 /// ^ For some reason we built one shot effect handling code around _arrays_ of effects. So we need to wrap our effect in an array.
                 ///  This doesn't make sense. We should clean this up at some point and remove the array.
+            } else if ([trigger isKindOfClass:NSString.class]) {
+                /// For scroll/drag triggers with a direction and oneshot action effect:
+                /// Merge into a single dict with a directionActions array so multiple directions coexist
+                NSDictionary *effectDict = (NSDictionary *)effect;
+                NSString *direction = tableEntry[kMFRemapsKeyDirection];
+                if (direction != nil && effectDict[kMFActionDictKeyType] != nil) {
+                    /// Build direction action entry
+                    NSDictionary *directionAction = @{
+                        kMFModifiedScrollDictKeyDirection: direction,
+                        kMFModifiedScrollDictKeyOneShotActionDict: effectDict,
+                    };
+                    /// Check if there's already a oneShotAction entry at this key path
+                    NSArray *keyArray = [@[modificationPrecondition] arrayByAddingObjectsFromArray:triggerKeyArray];
+                    id existing = remapsDict;
+                    for (id key in keyArray) {
+                        existing = [existing objectForKey:key];
+                        if (existing == nil) break;
+                    }
+                    if (existing != nil && [existing isKindOfClass:NSDictionary.class]) {
+                        NSString *existingType = [(NSDictionary *)existing objectForKey:kMFModifiedScrollDictKeyEffectModificationType];
+                        if ([existingType isEqualToString:kMFModifiedScrollEffectModificationTypeOneShotAction]) {
+                            /// Append to existing directionActions array
+                            NSMutableArray *directionActions = [[(NSDictionary *)existing objectForKey:kMFModifiedScrollDictKeyDirectionActions] mutableCopy];
+                            [directionActions addObject:directionAction];
+                            NSMutableDictionary *merged = [(NSDictionary *)existing mutableCopy];
+                            merged[kMFModifiedScrollDictKeyDirectionActions] = directionActions;
+                            effect = merged;
+                            [remapsDict setObject:effect forCoolKeyArray:keyArray];
+                            continue;
+                        }
+                    }
+                    /// Create new oneShotAction dict with directionActions array
+                    NSMutableDictionary *actionScrollDict = [NSMutableDictionary dictionary];
+                    actionScrollDict[kMFModifiedScrollDictKeyEffectModificationType] = kMFModifiedScrollEffectModificationTypeOneShotAction;
+                    actionScrollDict[kMFModifiedScrollDictKeyDirectionActions] = @[directionAction];
+                    effect = actionScrollDict;
+                }
             }
             /// Put it all together
             NSArray *keyArray = [@[modificationPrecondition] arrayByAddingObjectsFromArray:triggerKeyArray];

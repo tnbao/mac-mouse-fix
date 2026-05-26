@@ -31,6 +31,7 @@
 #import "ModifiedDragOutputTwoFingerSwipe.h"
 #import "ModifiedDragOutputFakeDrag.h"
 #import "ModifiedDragOutputAddMode.h"
+#import "Actions.h"
 
 #import "GlobalEventTapThread.h"
 
@@ -160,13 +161,31 @@ static ModifiedDragState _drag;
         
         /// Get type
         MFStringConstant type = effectDict[kMFModifiedDragDictKeyType];
-        
+
+        /// Handle oneshot action effect (direction + action from scroll/drag with direction)
+        NSString *oneShotEffectType = effectDict[kMFModifiedScrollDictKeyEffectModificationType];
+        if ([oneShotEffectType isEqualToString:kMFModifiedScrollEffectModificationTypeOneShotAction]) {
+            /// Store the effect dict for later use, init as drag with special handling
+            _drag.type = kMFModifiedScrollEffectModificationTypeOneShotAction;
+            _drag.effectDict = effectDict;
+            _drag.initTime = CACurrentMediaTime();
+            _drag.outputPlugin = nil;
+            _drag.origin = getRoundedPointerLocation();
+            _drag.originOffset = (Vector){0};
+            _drag.activationState = kMFModifiedInputActivationStateInitialized;
+            _drag.isSuspended = NO;
+            /// Enable the mouse-moved event tap so drag movement is tracked
+            CGEventTapEnable(_drag.eventTap, true);
+            DDLogDebug(@"\nEnabled drag eventTap for oneShotAction");
+            return;
+        }
+
         /// Init static parts of `_drag`
         _drag.type = type;
         _drag.effectDict = effectDict;
 //        _drag.initialModifiers = modifiers;
         _drag.initTime = CACurrentMediaTime();
-        
+
         id<ModifiedDragOutputPlugin> p;
         if ([type isEqualToString:kMFModifiedDragTypeThreeFingerSwipe]) {
             p = (id<ModifiedDragOutputPlugin>)ModifiedDragOutputThreeFingerSwipe.class;
@@ -179,11 +198,11 @@ static ModifiedDragState _drag;
         } else {
             assert(false);
         }
-        
+
         /// Link with plugin
 //        [p initializeWithDragState:&_drag];
         _drag.outputPlugin = p;
-        
+
         /// Init dynamic parts of _drag
         initDragState_Unsafe();
     });
@@ -298,23 +317,63 @@ static CGEventRef __nullable eventTapCallBack(CGEventTapProxy proxy, CGEventType
 }
 
 static void handleMouseInputWhileInitialized(int64_t deltaX, int64_t deltaY, CGEventRef event) {
-    
+
     /// Activate the modified drag if the mouse has been moved far enough from the point where the drag started
-    
+
     Vector ofs = _drag.originOffset;
     if (MAX(fabs(ofs.x), fabs(ofs.y)) > _drag.usageThreshold) {
-        
+
         /// Debug
         DDLogDebug(@"Modified Drag entered 'in use' state");
-        
+
+        /// Determine drag direction
+        MFAxis usageAxis;
+        if (fabs(ofs.x) < fabs(ofs.y)) {
+            usageAxis = kMFAxisVertical;
+        } else {
+            usageAxis = kMFAxisHorizontal;
+        }
+
+        /// Handle oneshot action for drag with direction
+        if ([_drag.type isEqualToString:kMFModifiedScrollEffectModificationTypeOneShotAction]) {
+
+            /// Determine actual drag direction
+            MFDirection dragDirection = kMFDirectionNone;
+            if (usageAxis == kMFAxisVertical) {
+                dragDirection = (ofs.y < 0) ? kMFDirectionUp : kMFDirectionDown;
+            } else {
+                dragDirection = (ofs.x < 0) ? kMFDirectionLeft : kMFDirectionRight;
+            }
+
+            /// Look up matching action from directionActions array
+            NSArray *directionActions = _drag.effectDict[kMFModifiedScrollDictKeyDirectionActions];
+            if (directionActions) {
+                for (NSDictionary *entry in directionActions) {
+                    NSString *configuredDirection = entry[kMFModifiedScrollDictKeyDirection];
+                    MFDirection requiredDirection = kMFDirectionNone;
+                    if ([configuredDirection isEqualToString:@"up"]) requiredDirection = kMFDirectionUp;
+                    else if ([configuredDirection isEqualToString:@"down"]) requiredDirection = kMFDirectionDown;
+                    else if ([configuredDirection isEqualToString:@"left"]) requiredDirection = kMFDirectionLeft;
+                    else if ([configuredDirection isEqualToString:@"right"]) requiredDirection = kMFDirectionRight;
+
+                    if (requiredDirection == kMFDirectionNone || dragDirection == requiredDirection) {
+                        NSDictionary *actionDict = entry[kMFModifiedScrollDictKeyOneShotActionDict];
+                        if (actionDict) {
+                            [Actions executeActionArray:@[actionDict] phase:kMFActionPhaseCombined];
+                        }
+                        break;
+                    }
+                }
+            }
+
+            /// Deactivate - oneshot action fires once per drag
+            _drag.activationState = kMFModifiedInputActivationStateNone;
+            return;
+        }
+
         /// Store state
         _drag.usageOrigin = getRoundedPointerLocationWithEvent(event);
-        
-        if (fabs(ofs.x) < fabs(ofs.y)) {
-            _drag.usageAxis = kMFAxisVertical;
-        } else {
-            _drag.usageAxis = kMFAxisHorizontal;
-        }
+        _drag.usageAxis = usageAxis;
         
         /// Update state
         _drag.activationState = kMFModifiedInputActivationStateInUse;

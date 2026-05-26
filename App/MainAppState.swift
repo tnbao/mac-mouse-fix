@@ -123,7 +123,11 @@ import ReactiveSwift
         observer.send(value: false)
     }
     func isEnabled() -> Bool { // TODO: Think about returning `latest` here or renaming the `isEnabled_Uncached`
-        HelperServices.helperIsActive()
+        #if DEBUG
+        return true /// Allow UI testing without helper registration
+        #else
+        return HelperServices.helperIsActive()
+        #endif
     }
     
     /// ObjC compat

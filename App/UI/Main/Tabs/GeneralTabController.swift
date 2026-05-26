@@ -202,7 +202,7 @@ class GeneralTabController: NSViewController {
                             
                             Toasts.showSimpleToast(name: "k-is-disabled-toast")
                         }
-                        else { assert(false) }
+                        else { /* assert(false) */ DDLogError("Helper registration failed: \(error)") }
                     }
                 })
                 

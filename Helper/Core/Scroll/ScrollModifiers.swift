@@ -27,6 +27,18 @@ extension MFScrollModificationResult: Hashable {
 @objc class ScrollModifiers: NSObject {
 
     static var activeModifications = NSDictionary()
+
+    /// Keyboard shortcut info (stored when effectMod is keyboardShortcut)
+    @objc static var keyboardShortcutKeycode: Int32 = 0
+    @objc static var keyboardShortcutFlags: Int32 = 0
+    @objc static var keyboardShortcutDirection: String? = nil
+
+    /// OneShotAction info (stored when effectMod is oneShotAction)
+    @objc static var oneShotActionDict: NSDictionary? = nil
+    @objc static var oneShotActionDirection: String? = nil
+
+    /// Array of direction→action pairs for multi-direction oneShotAction
+    @objc static var directionActions: NSArray? = nil
     
     @objc public static func currentModifications(event: CGEvent) -> MFScrollModificationResult {
         
@@ -94,6 +106,18 @@ extension MFScrollModificationResult: Hashable {
                 result.effectMod = kMFScrollEffectModificationThreeFingerSwipeHorizontal
             case kMFModifiedScrollEffectModificationTypeAddModeFeedback:
                 result.effectMod = kMFScrollEffectModificationAddModeFeedback
+            case kMFModifiedScrollEffectModificationTypeKeyboardShortcut:
+                result.effectMod = kMFScrollEffectModificationKeyboardShortcut
+                /// Store keyboard shortcut info for Scroll.m to use
+                self.keyboardShortcutKeycode = (modifiedScrollDict[kMFModifiedScrollDictKeyKeyboardShortcutKeycode] as? NSNumber)?.int32Value ?? 0
+                self.keyboardShortcutFlags = (modifiedScrollDict[kMFModifiedScrollDictKeyKeyboardShortcutFlags] as? NSNumber)?.int32Value ?? 0
+                self.keyboardShortcutDirection = modifiedScrollDict[kMFModifiedScrollDictKeyDirection] as? String
+            case kMFModifiedScrollEffectModificationTypeOneShotAction:
+                result.effectMod = kMFScrollEffectModificationOneShotAction
+                self.directionActions = modifiedScrollDict[kMFModifiedScrollDictKeyDirectionActions] as? NSArray
+                /// Legacy single-action fields (kept for backward compat)
+                self.oneShotActionDict = modifiedScrollDict[kMFModifiedScrollDictKeyOneShotActionDict] as? NSDictionary
+                self.oneShotActionDirection = modifiedScrollDict[kMFModifiedScrollDictKeyDirection] as? String
             default:
                 fatalError("Unknown modifiedSrollDict type found in remaps")
             }

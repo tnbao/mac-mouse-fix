@@ -71,18 +71,51 @@ static NSDictionary *separatorEffectsTableEntry() {
 //static NSDictionary *hideableSeparatorEffectsTableEntry() {
 //    return @{@"isSeparator": @YES, @"hideable": @YES}; /// This doesn't work ;/
 //}
-static NSArray *getScrollEffectsTable() {
-    
-    /// NOTES:
-    ///     If you change effects tables, update the config version in **default_config.plist**. Otherwise there might be crash-loops after upgrading/downgrading.
-    
+static NSArray *getKeyboardShortcutOnlyEffectsTable(NSDictionary *rowDict) {
+
+    /// Used for scroll and drag triggers when a direction is selected - only allows keyboard shortcut actions
+
+    NSDictionary *selectedEffect = rowDict[kMFRemapsKeyEffect];
+
+    NSMutableArray *effectsTable = @[
+        @{
+            @"ui": MFLocalizedString(@"effect.record-shortcut", @""),
+            @"tool": MFLocalizedString(@"effect.record-shortcut.hint", @""),
+            @"keyCaptureEntry": @YES
+        },
+    ].mutableCopy;
+
+    /// Get keycapture index
+    NSUInteger keyCaptureIndex = 0;
+
+    /// Insert entry for keyboard shortcut effect or systemDefined effect
+    BOOL isKeyShortcut = [selectedEffect[kMFActionDictKeyType] isEqual:kMFActionDictTypeKeyboardShortcut];
+    BOOL isSystemEvent = [selectedEffect[kMFActionDictKeyType] isEqual:kMFActionDictTypeSystemDefinedEvent];
+
+    if (isKeyShortcut || isSystemEvent) {
+
+        NSAttributedString *shortcutString = getShortcutString(selectedEffect, isKeyShortcut);
+        NSString *shortcutStringRaw = [shortcutString stringWithAttachmentDescriptions];
+
+        [effectsTable insertObject:@{
+            @"uiAttributed": shortcutString,
+            @"tool": stringf(MFLocalizedString(@"effect.shortcut.hint", @""), shortcutStringRaw),
+            @"dict": selectedEffect,
+            @"indentation": @1,
+        } atIndex:keyCaptureIndex + 1];
+    }
+
+    return effectsTable;
+}
+static NSArray *getOriginalScrollEffectsTable() {
+
     NSArray *scrollEffectsTable = @[
         @{@"ui": MFLocalizedString(@"scroll-effect.4-pinch", @"") , @"tool": MFLocalizedString(@"scroll-effect.4-pinch.hint", @""), @"dict": @{
             kMFModifiedScrollDictKeyEffectModificationType: kMFModifiedScrollEffectModificationTypeFourFingerPinch
         }},
         @{@"ui": MFLocalizedString(@"scroll-effect.spaces", @""), @"tool": MFLocalizedString(@"scroll-effect.spaces.hint", @""), @"dict": @{
             kMFModifiedScrollDictKeyEffectModificationType: kMFModifiedScrollEffectModificationTypeThreeFingerSwipeHorizontal
-        }}, /// Removed this in 3.0.0 Beta 6 but MAK1023 wanted it back https://github.com/noah-nuebling/mac-mouse-fix/discussions/495. Should remove this once Click and Drag for Spaces & Mission Control is an adequate replacement for MAK1023.
+        }},
         separatorEffectsTableEntry(),
         @{@"ui": MFLocalizedString(@"scroll-effect.zoom", @""), @"tool": MFLocalizedString(@"scroll-effect.zoom.hint", @"") , @"dict": @{
             kMFModifiedScrollDictKeyEffectModificationType: kMFModifiedScrollEffectModificationTypeZoom
@@ -92,7 +125,7 @@ static NSArray *getScrollEffectsTable() {
         }},
         @{@"ui": MFLocalizedString(@"scroll-effect.rotate", @""), @"hideable": @NO, @"tool": MFLocalizedString(@"scroll-effect.rotate.hint", @""), @"dict": @{
             kMFModifiedScrollDictKeyEffectModificationType: kMFModifiedScrollEffectModificationTypeRotate
-        }}, /// We only have this option so the menu layout looks better. I can't really think of a usecase
+        }},
         separatorEffectsTableEntry(),
         @{@"ui": MFLocalizedString(@"scroll-effect.swift", @""), @"tool": MFLocalizedString(@"scroll-effect.swift.hint", @""), @"dict": @{
             kMFModifiedScrollDictKeyInputModificationType: kMFModifiedScrollInputModificationTypeQuickScroll
@@ -100,15 +133,10 @@ static NSArray *getScrollEffectsTable() {
         @{@"ui": MFLocalizedString(@"scroll-effect.precise", @""), @"tool": MFLocalizedString(@"scroll-effect.precise.hint", @""), @"dict": @{
             kMFModifiedScrollDictKeyInputModificationType: kMFModifiedScrollInputModificationTypePrecisionScroll
         }},
-//        separatorEffectsTableEntry(),
-//        @{@"ui": MFLocalizedString(@"scroll-effect.app-switcher", @""), @"tool": MFLocalizedString(@"scroll-effect.app-switcher.hint", @""), @"dict": @{
-//            kMFModifiedScrollDictKeyEffectModificationType: kMFModifiedScrollEffectModificationTypeCommandTab
-//        }},
-        
     ];
     return scrollEffectsTable;
 }
-static NSArray *getDragEffectsTable() {
+static NSArray *getOriginalDragEffectsTable() {
     NSArray *dragEffectsTable = @[
         @{
             @"ui": MFLocalizedString(@"drag-effect.dock-swipe", @""),
@@ -124,26 +152,29 @@ static NSArray *getDragEffectsTable() {
                   kMFModifiedDragDictKeyType: kMFModifiedDragTypeTwoFingerSwipe,
             }
         },
-//        separatorEffectsTableEntry(),
-//        @{
-////          @"ui": [NSString stringWithFormat:@"%@ Click and Drag", [UIStrings getButtonString:3]],
-//          @"ui": [NSString stringWithFormat:@"Middle Click and Drag"],
-////          @"ui": [NSString stringWithFormat:@"%@ Drag", [UIStrings getButtonString:3]],
-//          @"tool": [NSString stringWithFormat: @"Works like clicking and dragging %@\nUsed to orbit in some 3D software like Blender", [UIStrings getButtonStringToolTip:3]],
-//          @"hideable": @YES,
-//          @"dict": @{
-//                  kMFModifiedDragDictKeyType: kMFModifiedDragTypeFakeDrag,
-//                  kMFModifiedDragDictKeyFakeDragVariantButtonNumber: @3,
-//        }},
     ];
     return dragEffectsTable;
 }
+static NSArray *getScrollEffectsTable(NSDictionary *rowDict) {
+    NSString *direction = rowDict[kMFRemapsKeyDirection];
+    if (direction != nil) {
+        return getOneShotEffectsTable(rowDict);
+    }
+    return getOriginalScrollEffectsTable();
+}
+static NSArray *getDragEffectsTable(NSDictionary *rowDict) {
+    NSString *direction = rowDict[kMFRemapsKeyDirection];
+    if (direction != nil) {
+        return getOneShotEffectsTable(rowDict);
+    }
+    return getOriginalDragEffectsTable();
+}
 static NSArray *getOneShotEffectsTable(NSDictionary *rowDict) {
-    
+
 //    MFMouseButtonNumber buttonNumber = ((NSNumber *)rowDict[kMFRemapsKeyTrigger][kMFButtonTriggerKeyButtonNumber]).unsignedIntValue;
-    
+
     NSDictionary *selectedEffect = rowDict[kMFRemapsKeyEffect];
-    
+
     NSMutableArray *oneShotEffectsTable = @[
         @{
             @"ui": MFLocalizedString(
@@ -183,7 +214,6 @@ static NSArray *getOneShotEffectsTable(NSDictionary *rowDict) {
         },
         @{@"ui": MFLocalizedString(@"effect.click.secondary", @""),
           @"tool": MFLocalizedString(@"effect.click.secondary.hint", @""),
-          @"hideable": @YES,
           @"dict": @{
               kMFActionDictKeyType: kMFActionDictTypeMouseButtonClicks,
               kMFActionDictKeyMouseButtonClicksVariantButtonNumber: @2,
@@ -278,10 +308,10 @@ static NSArray *getOneShotEffectsTable(NSDictionary *rowDict) {
             @"keyCaptureEntry": @YES
         },
     ].mutableCopy;
-    
+
     /// Insert button specific entry
     ///     Disabling this for now because I don't want to translate it and noone uses it.
-    
+
 //    if (buttonNumber != 3) { /// We already have the "Open Link in New Tab" / "Middle Click" entry for button 3
 //        NSDictionary *buttonClickEntry = @{
 //            @"ui": [NSString stringWithFormat:@"%@ Click", [UIStrings getButtonString:buttonNumber]],
@@ -296,12 +326,12 @@ static NSArray *getOneShotEffectsTable(NSDictionary *rowDict) {
 //        };
 //        [oneShotEffectsTable insertObject:buttonClickEntry atIndex:10];
 //    }
-    
+
     /// Make selected entry non-hidden
     for (int i = 0; i < oneShotEffectsTable.count; i++) {
-        
+
         NSDictionary *entry = oneShotEffectsTable[i];
-        
+
         if ([entry[@"dict"] isEqual:selectedEffect]) {
             NSMutableDictionary *newEntry = entry.mutableCopy;
             newEntry[@"hideable"] = @"NO";
@@ -309,32 +339,32 @@ static NSArray *getOneShotEffectsTable(NSDictionary *rowDict) {
             oneShotEffectsTable[i] = newEntry;
         }
     }
-    
+
     /// Insert entry for keyboard shortcut effect
-    
+
     /// Get keycapture index
     NSIndexSet *keyCaptureIndexes = [oneShotEffectsTable indexesOfObjectsPassingTest:^BOOL(NSDictionary * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
         return [obj[@"keyCaptureEntry"] isEqual:@YES];
     }];
     assert(keyCaptureIndexes.count == 1);
     NSUInteger keyCaptureIndex = keyCaptureIndexes.firstIndex;
-    
+
     /// Insert entry for keyboard shortcut effect or systemDefined effect
-    
+
     BOOL isKeyShortcut = [selectedEffect[kMFActionDictKeyType] isEqual:kMFActionDictTypeKeyboardShortcut];
     BOOL isSystemEvent = [selectedEffect[kMFActionDictKeyType] isEqual:kMFActionDictTypeSystemDefinedEvent];
-    
+
     if (isKeyShortcut || isSystemEvent) {
-        
+
         /// Get index for new entry (right after keyCaptureEntry)
         NSUInteger shortcutIndex = keyCaptureIndex + 1;
-        
+
         /// Get  strings
-        
+
         NSAttributedString *shortcutString = getShortcutString(selectedEffect, isKeyShortcut);
 
         NSString *shortcutStringRaw = [shortcutString stringWithAttachmentDescriptions];
-        
+
         /// Create and insert new entry
         [oneShotEffectsTable insertObject:@{
             @"uiAttributed": shortcutString,
@@ -343,11 +373,11 @@ static NSArray *getOneShotEffectsTable(NSDictionary *rowDict) {
             @"indentation": @1,
         } atIndex:shortcutIndex];
     }
-    
+
     /// Insert hidden submenu for  apple specific keys
-    
+
     int separator = -1;
-    
+
     MFSystemDefinedEventType systemEventTypes[] = {
         kMFSystemEventTypeBrightnessDown,
         kMFSystemEventTypeBrightnessUp,
@@ -361,12 +391,12 @@ static NSArray *getOneShotEffectsTable(NSDictionary *rowDict) {
         kMFSystemEventTypeVolumeUp
     };
     int count = sizeof(systemEventTypes) / sizeof(systemEventTypes[0]);
-    
+
     NSMutableArray<NSDictionary *> *submenu = [NSMutableArray array];
     for (int i = 0; i < count; i++) {
-        
+
         MFSystemDefinedEventType type = systemEventTypes[i];
-        
+
         if (type == separator) {
             [submenu addObject:separatorEffectsTableEntry()];
         } else {
@@ -375,7 +405,7 @@ static NSArray *getOneShotEffectsTable(NSDictionary *rowDict) {
                 kMFActionDictKeySystemDefinedEventVariantType: @(type),
                 kMFActionDictKeySystemDefinedEventVariantModifierFlags: @(0),
             };
-    
+
             NSAttributedString *shortcutString = getShortcutString(actionDict, NO);
             NSString *shortcutStringRaw = [shortcutString stringWithAttachmentDescriptions];
             [submenu addObject:@{
@@ -385,33 +415,33 @@ static NSArray *getOneShotEffectsTable(NSDictionary *rowDict) {
             }];
         }
     }
-    
+
     [oneShotEffectsTable insertObject:@{
         @"ui": MFLocalizedString(@"effect.apple-keys-submenu", @"Note: This is the title for a hidden submenu that lets you remap your buttons to keyboard keys that only appear on Apple Keyboards such as the 'Brightness Up' or 'Do Not Disturb' keys. (You can hold option (⎇) to reveal the submenu)"),
         @"tool": MFLocalizedString(@"effect.apple-keys-submenu.hint", @""),
         @"alternate": @YES,
         @"submenu": submenu
     } atIndex:keyCaptureIndex+1];
-    
+
     return oneShotEffectsTable;
 }
 
 /// Helper for getEffectsTable
 
 static NSAttributedString *getShortcutString(NSDictionary *effectDict, BOOL isKeyShortcut) {
-    
+
     if (isKeyShortcut) {
-        
+
         CGKeyCode keyCode = ((NSNumber *)effectDict[kMFActionDictKeyKeyboardShortcutVariantKeycode]).unsignedShortValue;
         CGEventFlags flags = ((NSNumber *)effectDict[kMFActionDictKeyKeyboardShortcutVariantModifierFlags]).unsignedLongValue;
-        
+
         return [UIStrings getStringForKeyCode:keyCode flags:flags font:[NSFont systemFontOfSize:NSFont.systemFontSize]];
-        
+
     } else { /// Is systemEventShortcut
-        
+
         MFSystemDefinedEventType type = ((NSNumber *)effectDict[kMFActionDictKeySystemDefinedEventVariantType]).unsignedIntValue;
         CGEventFlags flags = ((NSNumber *)effectDict[kMFActionDictKeySystemDefinedEventVariantModifierFlags]).unsignedLongValue;
-        
+
         return [UIStrings getStringForSystemDefinedEvent:type flags:flags font:[NSFont systemFontOfSize:NSFont.systemFontSize]];
     }
 }
@@ -420,16 +450,16 @@ static NSAttributedString *getShortcutString(NSDictionary *effectDict, BOOL isKe
 
 /// We wanted to rename 'effects table' to 'effects menu model', but we only did it in a few places. Thats why this is named weird
 + (NSDictionary * _Nullable)getEntryFromEffectTable:(NSArray *)effectTable withEffectDict:(NSDictionary *)effectDict {
-    
-    if ([effectDict[@"drawKeyCaptureView"] isEqual: @YES]) {
+
+    if (effectDict == nil || [effectDict[@"drawKeyCaptureView"] isEqual: @YES]) {
         return nil;
     }
-    
+
     NSIndexSet *inds = [effectTable indexesOfObjectsPassingTest:^BOOL(NSDictionary * _Nonnull tableEntry, NSUInteger idx, BOOL * _Nonnull stop) {
         return [tableEntry[@"dict"] isEqualToDictionary:effectDict];
     }];
+    if (inds.count == 0) return nil;
     NSAssert(inds.count == 1, @"Inds: %@", inds);
-    // TODO: React well to inds.count == 0, to support people editing remaps dict by hand (If I'm reallyyy bored)
     NSDictionary *effectsTableEntry = (NSDictionary *)effectTable[inds.firstIndex];
     return effectsTableEntry;
 }
@@ -443,7 +473,7 @@ static NSAttributedString *getShortcutString(NSDictionary *effectDict, BOOL isKe
 //}
 
 + (NSArray *)getEffectsTableForRemapsTableEntry:(NSDictionary *)rowDict {
-    
+
     /// Get info about what kind of trigger we're dealing with
     NSString *triggerType = @""; /// Options "oneShot", "drag", "scroll"
     id triggerValue = rowDict[kMFRemapsKeyTrigger];
@@ -466,9 +496,9 @@ static NSAttributedString *getShortcutString(NSDictionary *effectDict, BOOL isKe
 //        NSDictionary *buttonTriggerDict = (NSDictionary *)triggerValue;
         effectsTable = getOneShotEffectsTable(rowDict);
     } else if ([triggerType isEqualToString:@"drag"]) {
-        effectsTable = getDragEffectsTable();
+        effectsTable = getDragEffectsTable(rowDict);
     } else if ([triggerType isEqualToString:@"scroll"]) {
-        effectsTable = getScrollEffectsTable();
+        effectsTable = getScrollEffectsTable(rowDict);
     } else {
         NSAssert(NO, @"");
     }
@@ -492,18 +522,18 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
 }
 
 + (NSMenuItem * _Nullable)getPopUpButtonItemToSelectBasedOnRowDict:(NSPopUpButton * _Nonnull)button rowDict:(NSDictionary * _Nonnull)rowDict {
-        
+
     /// Datamodel -> Button state
-    
+
     NSDictionary *targetEffect = rowDict[kMFRemapsKeyEffect];
     NSArray *effectPickerModel = [RemapTableTranslator getEffectsTableForRemapsTableEntry:rowDict];
-    
+
     int resultUIIndex = -1;
-    
+
     int uiIndex = 0;
     int modelIndex = 0;
-    
-    while (true) {
+
+    while (modelIndex < (int)effectPickerModel.count) {
         NSDictionary *effect = effectPickerModel[modelIndex];
         if ([effect[@"hideable"] isEqual:@YES]) {
             uiIndex += 1;
@@ -515,7 +545,7 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
         uiIndex += 1;
         modelIndex += 1;
     }
-    
+
     if (resultUIIndex != -1) {
         return [button itemAtIndex:resultUIIndex];
     } else {
@@ -524,22 +554,22 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
 }
 
 + (NSDictionary * _Nullable)getEffectDictBasedOnSelectedItemInButton:(NSPopUpButton * _Nonnull)button rowDict:(NSDictionary * _Nonnull)rowDict {
-    
+
     /// Button state -> Datamodel
-    
+
     NSArray *effectsTable = [RemapTableTranslator getEffectsTableForRemapsTableEntry:rowDict];
     NSInteger targetUIIndex = button.indexOfSelectedItem;
-    
+
     int uiIndex = 0;
     int modelIndex = 0;
-    
-    while (true) {
-        
+
+    while (modelIndex < (int)effectsTable.count) {
+
         NSDictionary *effect = effectsTable[modelIndex];
         if ([effect[@"hideable"] isEqual:@YES]) {
             uiIndex += 1;
         }
-         
+
         if (uiIndex == targetUIIndex) {
             break;
         }
@@ -547,30 +577,30 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
             assert(false);
             break;
         }
-        
+
         uiIndex += 1;
         modelIndex += 1;
     }
-    
-    
-    
+
+    if (modelIndex >= (int)effectsTable.count) return nil;
+
     return effectsTable[modelIndex][@"dict"];
 }
 
 + (NSMenuItem *)menuItemFromDataModel:(NSDictionary *)itemModel enclosingMenu:(NSMenu *)enclosingMenu tableCell:(NSTableCellView *)tableCell {
-    
+
     RemapTableMenuItem *i;
-    
+
     if ([itemModel[@"isSeparator"] isEqual: @YES]) {
-        
+
         i = (RemapTableMenuItem *)RemapTableMenuItem.separatorItem;
-        
+
         /// IDEA: Add a "bigSeparator" for 2 level grouping and easier visual parsing
-        
+
     } else {
-        
+
         i = [[RemapTableMenuItem alloc] init];
-        
+
         NSString *title = itemModel[@"ui"];
         if (title != nil) {
             i.title = title;
@@ -583,7 +613,7 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
         assert(i.accessibilityHelp == nil); /// Most UI elements publish their tooltips as accessibilityHelp automatically, but NSMenuItems don't do that by default, so we do it manually. We do this mainly so that the tooltip string is associated with its NSMenuItem in a way that is visible to accessibility API, which lets us link the menuItem to the tooltip string when creating localizationScreenshots.
         i.accessibilityHelp = i.toolTip;
         i.host = tableCell;
-        
+
         if ([itemModel[@"keyCaptureEntry"] isEqual:@YES]) {
             i.action = @selector(handleKeystrokeMenuItemSelected:);
         }
@@ -625,33 +655,33 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
 ///         We used to use the function 'disableUI:' in App Delegate to recursively go over all controls and disable them. But disabling controls contained in the table view sometimes didn't work, when they weren't scrolled into view. (It worked when disableUI: was called in response to toggling the "Enabled Mac Mouse Fix" checkbox, but it didn't work when it was called in response to the app launching. I'm not sure why.)
 ///            For a clean solution, the tableView should reload it's content, whenever tableView.enabled changes, so that this function is called again. I don't think it does this (automatically) though. However, things still seem to work fine. I assume, that's because we're still doing the recursive enabling/disabling from AppDelegate - disableUI:, and both that function and this one work together in some way I don't understand to enable/disable everything properly.
 + (NSTableCellView *)getEffectCellWithRowDict:(NSDictionary *)rowDict row:(NSUInteger)row tableViewEnabled:(BOOL)tableViewEnabled {
-    
+
     rowDict = rowDict.mutableCopy; /// Not sure if necessary
     NSArray *effectTable = [self getEffectsTableForRemapsTableEntry:rowDict];
     /// Create trigger cell and fill out popup button contained in it
     NSTableCellView *triggerCell = [self.tableView makeViewWithIdentifier:@"effectCell" owner:nil];
-    
+
     NSDictionary *effectDict = rowDict[kMFRemapsKeyEffect];
-    
+
     if ([effectDict[@"drawKeyCaptureView"] isEqual:@YES]) { /// This is not a real effectDict, but instead an instruction to draw a key capture view
-        
+
         /// Create captureField
-        
+
         /// Get MFKeystrokeCaptureCell instance from IB
         NSTableCellView *keyCaptureCell = [self.tableView makeViewWithIdentifier:@"keyCaptureCell" owner:self];
         /// Get capture field
         KeyCaptureView *keyStrokeCaptureField = (KeyCaptureView *)[keyCaptureCell nestedSubviewsWithIdentifier:@"keyCaptureView"][0];
-        
+
         [keyStrokeCaptureField setupWithCaptureHandler:^(CGKeyCode keyCode, MFSystemDefinedEventType type, CGEventFlags flags) {
-            
+
             BOOL keyCodeValid = keyCode != USHRT_MAX;
             BOOL typeValid = type != UINT_MAX;
-            
+
             assert(!(keyCodeValid && typeValid));
             assert(keyCodeValid || typeValid);
-            
+
             NSDictionary *newEffectDict;
-            
+
             if (keyCodeValid) {
                 newEffectDict = @{
                     kMFActionDictKeyType: kMFActionDictTypeKeyboardShortcut,
@@ -665,26 +695,26 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
                     kMFActionDictKeySystemDefinedEventVariantModifierFlags: @(flags),
                 };
             }
-            
+
             /// Insert new effectDict into dataModel and reload table
             ///  Manipulating the datamodel should probably be done by RemapTableController, not RemapTableTranslator, and definitely not in this method, but oh well.
-            
+
             NSInteger rowBaseDataModel = [RemapTableUtility baseDataModelIndexFromGroupedDataModelIndex:row withGroupedDataModel:self.groupedDataModel];
-            
+
             self.dataModel[rowBaseDataModel][kMFRemapsKeyEffect] = newEffectDict;
             [self.tableView reloadData];
             [self.controller updateTableAndWriteToConfig:nil];
-            
+
         } cancelHandler:^{
-            
+
             [self.tableView reloadData];
             /// Restore tableView to the ground truth dataModel
             ///  This used to restore original state if the capture field has been created through `reloadDataWithTemporaryDataModel:`
-            
+
         }];
-        
+
         triggerCell = keyCaptureCell;
-        
+
     } else {
         /// Get popup button
         NSPopUpButton *popupButton = triggerCell.subviews[0];
@@ -695,7 +725,7 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
             NSMenuItem *i = [self menuItemFromDataModel:effectTableEntry enclosingMenu:popupButton.menu tableCell:triggerCell];
             [popupButton.menu addItem:i];
         }
-        
+
         /// Select popup button item corresponding to datamodel
         /// Get effectDict from datamodel
         NSMenuItem *itemToSelect = [self getPopUpButtonItemToSelectBasedOnRowDict:popupButton rowDict:rowDict];
@@ -703,13 +733,13 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
             [popupButton selectItem:itemToSelect];
             popupButton.toolTip = itemToSelect.toolTip;
         }
-        
+
         /// Disable popupbutton, if tableView is disabled
         ///     TODO: This shouldn't be necessary in MMF3. Remove code for disabling the tableView
         popupButton.enabled = tableViewEnabled;
-       
+
     }
-    
+
     return triggerCell;
 }
 
@@ -717,28 +747,28 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
 
 
 + (NSTableCellView *)getTriggerCellWithRowDict:(NSDictionary *)rowDict row:(NSInteger)row {
-    
+
     /// Create mutable copy
     /// Necessary for some of this hacky mess to work –– However, this is not a deep copy, so the `_dataModel` is still changed when we change some nested object. Watch out!
-    
+
     /// With the MMF3 localization rewrite we removed tooltips from the trigger cells. Commit 87ffe81ebb6b0b231d4d204848def15742fd40cb is the last with the old logic + tooltips.
-    
+
     rowDict = rowDict.mutableCopy;
-    
+
     #pragma mark --- Get data ---
-    
+
     id triggerGeneric = rowDict[kMFRemapsKeyTrigger];
-    
+
     /// Get the trigger type
-    
+
     NSString *triggerType; /// Either `_button`, `_drag`, or `_scroll`
-    
+
     if ([triggerGeneric isKindOfClass:NSDictionary.class]) {
-        
+
         triggerType = @"_button"; /// Using underscore to make clear that this is not a UI string
-        
+
     } else if ([triggerGeneric isKindOfClass:NSString.class]) {
-        
+
         NSString *trigger = (NSString *)triggerGeneric;
         if ([trigger isEqualToString:kMFTriggerDrag]) {
             triggerType = @"_drag";
@@ -751,108 +781,108 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
         DDLogInfo(@"Trigger value: %@, class: %@", triggerGeneric, [triggerGeneric class]);
         @throw [NSException exceptionWithName:@"Invalid trigger value type" reason:@"The value for the trigger key is not a String and not a dictionary" userInfo:@{@"Trigger value": triggerGeneric}];
     }
-    
+
     /// Get additional trigger info
-        
+
     NSNumber *btn;
     NSNumber *lvl;
     NSString *dur; /// Only used for button trigger
     BOOL flagsOnlyPrecond = NO;
-    
+
     if ([triggerType isEqual: @"_button"]) {
-        
+
         NSDictionary *trigger = (NSDictionary *)triggerGeneric;
         btn = trigger[kMFButtonTriggerKeyButtonNumber];
         lvl = trigger[kMFButtonTriggerKeyClickLevel];
         dur = trigger[kMFButtonTriggerKeyDuration];
-        
+
     } else if ([triggerType isEqual: @"_drag"] || [triggerType isEqual: @"_scroll"]) {
-        
+
         /// Extract last button press from button-modification-precondition. If it doesn't exist, extract kb mods
         ///   This info will be used to form the trigger string and will therefore be removed from the modificationPrecondition
-        
+
         NSMutableArray *buttonPressSequence = ((NSArray *)rowDict[kMFRemapsKeyModificationPrecondition][kMFModificationPreconditionKeyButtons]).mutableCopy;
-        
+
         if (buttonPressSequence) {
-            
+
             /// Extract last button
             btn = buttonPressSequence.lastObject[kMFButtonModificationPreconditionKeyButtonNumber];
             lvl = buttonPressSequence.lastObject[kMFButtonModificationPreconditionKeyClickLevel];
-            
+
             /// Remove last button from precondition
             [buttonPressSequence removeLastObject];
             rowDict[kMFRemapsKeyModificationPrecondition][kMFModificationPreconditionKeyButtons] = buttonPressSequence;
-            
+
         } else if (rowDict[kMFRemapsKeyModificationPrecondition][kMFModificationPreconditionKeyKeyboard] != nil) {
-            
+
             /// There are no button preconds but there are keyboard modifier preconds - we can deal with it
             flagsOnlyPrecond = YES;
-            
+
         } else {
             @throw [NSException exceptionWithName:@"No precondition" reason:@"Modified drag or scroll has no preconditions" userInfo:@{@"Precond dict": (rowDict[kMFRemapsKeyModificationPrecondition])}];
         }
-        
+
     } else {
         assert(false);
     }
-    
+
     #pragma mark --- Build strings ---
-    
+
     /// Build main trigger string
     ///     (Naming is confusing since we call three different things the "trigger string")
-    
+
     NSAttributedString *tr = nil;
-    
+
     if ([triggerType isEqual: @"_button"]) {
-            
+
         ///
         /// Button trigger
         ///
-        
+
         /// Declare map
-        
+
         NSDictionary *map = @{
             @[@(1), @"click"]:  MFLocalizedString(@"trigger.substring.click.1",   @""
                 "Note: \"%@\" will be a button name (or nothing, if the button name can be inferred from context)\n"
                 "Example where %@ is \"Button 5\": ⌥⌘ Double Click Button 4 + Click Button 5"
                 ), /// || NOTE: This 'substring' will be combined with other substrings to form the 'Action Table Trigger Strings' which show up on the left side of the Action Table || NOTE 2: '%@' will be replaced by a mouse button name (or by nothing, if the button name can be inferred from context.) || EXAMPLE of an Action Table Trigger String, which is composed of this and other substrings, where '%@' in this substring was replaced by 'Button 5': ⌥⌘ Double Click Button 4 + Click Button 5 || NOTE 3: Most of the substrings that are used to build the Action Table Trigger Strings (this is one of those substrings) are capitalized in English because it's common to use 'Title Case' there. In your language, 'Title Case' might not be a thing, and so you might not want to capitalize these substrings. The first letter of the Action Table Trigger String will be programmatically capitalized in any language."),
-            
+
             @[@(2), @"click"]:  MFLocalizedString(@"trigger.substring.click.2",   @""), ///|| NOTE: You might not want to capitalize this and other strings whose key starts with 'trigger.substring.' We only capitalize these strings in English because we use 'Title Case' there, which is not common in most languages aside from English. For more info, see the comments on 'trigger.substring.click.1'"),
             @[@(3), @"click"]:  MFLocalizedString(@"trigger.substring.click.3",   @""),
             @[@(1), @"hold"]:   MFLocalizedString(@"trigger.substring.hold.1",    @"Remember: The strings starting with \"trigger.substring.[...]\" should be lowercase in most languages. See trigger.substring.button-modifier.2 for the explanation."),
             @[@(2), @"hold"]:   MFLocalizedString(@"trigger.substring.hold.2",    @""),
             @[@(3), @"hold"]:   MFLocalizedString(@"trigger.substring.hold.3",    @""),
         };
-        
+
         /// Get string
-        
+
         tr = [map[@[lvl, dur]] attributed]; /// Append buttonStr later depending on whether there are button preconds
-        
+
         /// Validate
-        
+
         if (!tr) {
             @throw [NSException exceptionWithName:@"Couldn't generate trigger string" reason:@"" userInfo:@{@"Trigger dict containing invalid value": triggerGeneric}];
         }
-        
+
     } else if ([triggerType isEqual: @"_drag"] || [triggerType isEqual: @"_scroll"]) {
-        
+
         ///
         /// Drag or scroll trigger
         ///
-        
+
         /// Note:
         /// - 26.08.2024: The 'Action Table Trigger String' and 'substring' and 'Title Case' concepts and the consequences for how the substrings should be captialized are a bit hard to explain to localizers.
         ///             And I saw the Brazilian, French and Vietnamese localizers all captialize the substrings, even though none of those languages have something akin to 'Title Case'.
         ///             Today, we added `.substring.` in the keys and and added very extensive comments to hopefully help with that.
-        
+
         /// TODO: Comment below is obsolete. Remove.
         /// We need part of the modification precondition to form the main trigger string here.
         ///  E.g. if our precondition for a modified drag is single click button 3, followed by double click button 4, we want the string to be "Click Middle Button + Double Click and Drag Button 4", where the "Click Middle Button + " substring follows the format of a regular modification precondition string (we compute those further down) but the "Double Click and Drag Button 4" substring, which is also called the "trigger string" follows a different format which we compute here.
         /// Get button strings from last button precond, or, if no button preconds exist, get keyboard modifier string
-        
-        
+
+
         /// Define maps
-        
+
         NSDictionary *map = @{
             @[@(1), @"_drag"]:      MFLocalizedString(@"trigger.substring.drag.1",    @""), /// (Removed the note because it's redundant with other notes. ) /// Note: %@ will be replaced by a mouse button name (or by nothing if it can be inferred from context) || Example where %@ is 'Button 5': ⌥⌘ Triple Click Button 4 + Click and Drag Button 5"),
             @[@(2), @"_drag"]:      MFLocalizedString(@"trigger.substring.drag.2",    @""),
@@ -861,7 +891,7 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
             @[@(2), @"_scroll"]:    MFLocalizedString(@"trigger.substring.scroll.2",  @""),
             @[@(3), @"_scroll"]:    MFLocalizedString(@"trigger.substring.scroll.3",  @""),
         };
-        
+
         NSDictionary *onlyFlagsMap = @{
             @"_drag":   MFLocalizedString(@"trigger.substring.drag.flags", @""
                 "Example: ⌥⌘ and Drag\n"
@@ -874,18 +904,18 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
                 "Note: Also see trigger.substring.drag.flags"
             ),
         };
-        
+
         /// Use maps
-        
+
         NSString *tr_;
-        
+
         if (btn != nil) {
             tr_ = map[@[lvl, triggerType]];
         } else {
             assert(flagsOnlyPrecond); /// If there are no buttons we need at least keyboard modifiers in the precondition
             tr_ = onlyFlagsMap[triggerType];
         }
-        
+
         /// Parse markdown
         ///     Purpose: Emphasize "Drag" and "Scroll" in `trigger.substring.drag.[x]` and `trigger.substring.scroll.[x]` for better scannability [Oct 2025]
         ///     Inconsistency: Using styleOverrides: here instead of default *emphasis* styling of the MarkdownParser (which produces a similar semi-bold look) to keep style we were using historically. I haven't tried to unify the styles. [Oct 2025]
@@ -895,10 +925,10 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
         ///     Old notes:  (from when we used to specify the substring to emphasize through localizable strings – which was error prone and annoying for localizers.)
         ///             - 26.08.2024: I saw the French and Brazillian loclizers not capitalize and spell the drag-particles exactly as they are in the trigger.substring.[...] strings.
         ///                 So we added more extensive comments and added `.z.` in the key so that translators see the drag-particles *after* the trigger.substring.[...] strings - hopefully making it more understandable how the particles affect the substrings.
-        
+
         tr = [MarkdownParser attributedStringWithCoolMarkdown: tr_ fillOutBase: NO styleOverrides: @{ /// Should we `fillOutBase:`? [Oct 2025]
             @(CMARK_NODE_EMPH): ^NSAttributedString *(NSAttributedString *dst, NSRangePointer nodeRange) {
-                
+
                 /// Set 'semibold' weight
                 /// Notes:
                 ///     - Old impl used `NSFontManager` with weight 7 (weight 8 was commented out)
@@ -906,43 +936,43 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
                 ///     - We're implementing bold and italic with `NSFontDescriptorSymbolicTraits`, but that doesn't seem to support semibold [Sep 2025]
                 ///         (Maybe we should just not use symbolicTraits at all, and instead use fontTraits and fontAttributes directly? symbolicTraits don't seem super useful.)
                 dst = [dst attributedStringByAddingWeight: NSFontWeightMedium forRange: nodeRange];
-                
+
                 /// Set 'semibold' color
                 /// I can't really get a semibold. It's too thick or too thin. So I'm trying to make it appear thicker by darkening the color.
                 ///     Update: We're no longer using `NSFontManager` so we may have more control over thickness now and no longer need the color adjustment. [Oct 2025]
                 {
-                    
+
                     NSColor *color;
                     if ((0)) color = [NSColor.textColor colorWithAlphaComponent: 1.0];   /// Custom colors disable the automatic color inversion when selecting a tableViewCell. See https://stackoverflow.com/a/29860102/10601702
                     else     color = NSColor.controlTextColor;                           /// This is almost black and automatically inverts. See: http://sethwillits.com/temp/nscolor/
-                    
+
                     dst = [dst attributedStringByAddingColor: color forRange: nodeRange];
                 }
-                
+
                 return dst;
             }
         }];
     }
-    
+
     /// Validate
-    
+
     NSAssert(tr != nil && ![tr.string isEqual:@""], @"Trigger string is empty. This is probably because there are missing translations. Translate strings starting with `trigger.` to fix this.");
-    
+
     ///
     /// Build button modifier string
     ///
 
     NSString *btnMod;
-    
+
     NSMutableArray *buttonPressSequence = rowDict[kMFRemapsKeyModificationPrecondition][kMFModificationPreconditionKeyButtons];
     NSMutableArray *buttonModifierStrings = [NSMutableArray array];
-    
+
     for (NSDictionary *buttonPress in buttonPressSequence) {
         NSNumber *btn = buttonPress[kMFButtonModificationPreconditionKeyButtonNumber];
         NSNumber *lvl = buttonPress[kMFButtonModificationPreconditionKeyClickLevel];
         NSString *buttonStr;
         buttonStr = [UIStrings getButtonString:btn.intValue context:kMFButtonStringUsageContextActionTableTriggerSubstring];
-        
+
         NSString *buttonModString;
         if (lvl.intValue == 1) {
             buttonModString = stringf(MFLocalizedString(@"trigger.substring.button-modifier.1", @""
@@ -972,76 +1002,76 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
     } else {
         btnMod = @"";
     }
-    
-    
+
+
     ///
     /// Build keyboad modifier string
     ///
-    
+
     NSNumber *flags = rowDict[kMFRemapsKeyModificationPrecondition][kMFModificationPreconditionKeyKeyboard];
     NSString *kbMod = [UIStrings getKeyboardModifierString:flags.unsignedIntegerValue];
-    
+
     ///
     /// Post processing on the substrings
     ///
-    
+
     if (![btnMod isEqual:@""]) {
-        
+
         /// Display main button – only if there *are* button modifiers
-        
+
         NSAttributedString *mainButton = [UIStrings getButtonString:btn.intValue context:kMFButtonStringUsageContextActionTableTriggerSubstring].attributed;
         mainButton = [mainButton attributedStringByAddingColor:NSColor.secondaryLabelColor forRange:NULL];
         tr = astringf(tr, mainButton);
-        
+
     } else {
-        
+
         /// If there are no button modifiers, just remove the `%@` format string
-        
+
         tr = astringf(tr, [@"" attributed]);
     }
-    
-    
+
+
     /// Capitalize trigger string
     ///     (The button mod string is already capitalized further up)
     ///     Need to trim whitespace because if the main button isn't displayed, there's a space at the start in German.
     ///     Hopefully this capitalization stuff is universal and doesn't break in some languages. It makes things look much better in German and English.
-    
+
     tr = [tr attributedStringByTrimmingWhitespace];
     tr = [tr attributedStringByCapitalizingFirst];
-    
+
     ///
     /// Join all substrings to get result
     ///
-    
+
     NSAttributedString *fullTriggerCellString = astringf(@"%@ %@ %@", [kbMod attributed], [btnMod attributed], tr);
-    
+
     /// Clean up string
     fullTriggerCellString = [fullTriggerCellString attributedStringByTrimmingWhitespace];
-    
+
     #pragma mark --- Create view ---
-    
+
     /// Create view
     RemapTableCellView *triggerCell = [self.tableView makeViewWithIdentifier:@"triggerCell" owner:nil];
 
     /// Do cool custom stuff
-    ///     We have to do this 
+    ///     We have to do this
 //    [triggerCell coolInit];
-    
+
     /// Set string
     triggerCell.textField.attributedStringValue = fullTriggerCellString;
     triggerCell.textField.toolTip = nil;
-    
+
     /// Hook up delete button
     RemapTableButton *deleteButton = (RemapTableButton *)[triggerCell subviewsWithIdentifier:@"deleteButton"][0];
     deleteButton.host = triggerCell; /// Hope this doesn't cause retain cycles
     deleteButton.action = @selector(inRowRemoveButtonAction:);
     deleteButton.target = self.controller;
-    
+
     /**
         [Aug 2025] Under macOS Tahoe, the deleteButton appears visually wider than it is specified. It's click-target doesn't match the oversized visuals
             - (All this goes away if you use `UIDesignRequiresCompatibility`, which we plan to ship MMF 3 with for now.)
             - This can be fixed by replacing the NSButton with an NSSegmentedControl with 1 segment.
-    
+
             Symbol weight on the NSSegmentedControl can't be changed in IB, we could do it here like this in code: (Copied from `Repro-Buttons-Too-Wide` project)
             ```
                 NSImageSymbolConfiguration *symbolConfig = [NSImageSymbolConfiguration configurationWithPointSize: 11 weight: NSFontWeightBold scale: NSImageSymbolScaleMedium];
@@ -1055,11 +1085,11 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
     ///  Explanation: Try to fix weird margins / dimensions under older macOS versions. So far nothing works.
     ///  Note: Also see where we override plusIconView.image in ButtonTabController
     if (@available(macOS 11.0, *)) { } else {
-        
+
         NSImage *plusImage = [NSImage imageNamed:NSImageNameRemoveTemplate];
         plusImage.size = NSMakeSize(plusImage.size.width + 6.0, plusImage.size.height);
         deleteButton.image = plusImage;
-        
+
 //        for (NSLayoutConstraint *c in deleteButton.constraints) {
 //            if (c.firstAttribute == NSLayoutAttributeWidth) {
 //                c.constant = 20; /// In IB it's set to 15 at time of writing
@@ -1068,9 +1098,86 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
 //        }
     }
 
+    /// Add direction popup for scroll/drag triggers
+    {
+        /// Remove any leftover direction popup from reused cell
+        NSView *existingPopup = [triggerCell viewWithTag:1001];
+        if (existingPopup) {
+            [existingPopup removeFromSuperview];
+        }
+        /// Restore text field hugging priorities for reused cells
+        [triggerCell.textField setContentHuggingPriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
+
+        id triggerValue = rowDict[kMFRemapsKeyTrigger];
+        BOOL isScrollOrDrag = [triggerValue isKindOfClass:NSString.class] &&
+            ([triggerValue isEqualToString:kMFTriggerDrag] || [triggerValue isEqualToString:kMFTriggerScroll]);
+
+        if (isScrollOrDrag) {
+
+            /// Create direction popup
+            NSPopUpButton *dirPopup = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+            dirPopup.translatesAutoresizingMaskIntoConstraints = NO;
+            dirPopup.tag = 1001; /// kDirectionPopupTag
+            dirPopup.controlSize = NSControlSizeSmall;
+            dirPopup.font = [NSFont systemFontOfSize:[NSFont systemFontSizeForControlSize:NSControlSizeSmall]];
+            ((NSPopUpButtonCell *)dirPopup.cell).arrowPosition = NSPopUpArrowAtBottom;
+            dirPopup.autoenablesItems = NO;
+
+            /// Add direction items
+            [dirPopup addItemWithTitle:@"—"];
+            [dirPopup addItemWithTitle:@"↑ Up"];
+            [dirPopup addItemWithTitle:@"↓ Down"];
+            [dirPopup addItemWithTitle:@"← Left"];
+            [dirPopup addItemWithTitle:@"→ Right"];
+
+            /// Set represented objects for direction values
+            [dirPopup itemAtIndex:1].representedObject = @"up";
+            [dirPopup itemAtIndex:2].representedObject = @"down";
+            [dirPopup itemAtIndex:3].representedObject = @"left";
+            [dirPopup itemAtIndex:4].representedObject = @"right";
+
+            /// Select current direction from data model
+            NSString *direction = rowDict[kMFRemapsKeyDirection];
+            if (direction) {
+                for (NSInteger i = 0; i < dirPopup.numberOfItems; i++) {
+                    if ([[dirPopup itemAtIndex:i].representedObject isEqual:direction]) {
+                        [dirPopup selectItemAtIndex:i];
+                        break;
+                    }
+                }
+            }
+
+            /// Set action
+            dirPopup.target = self.controller;
+            dirPopup.action = @selector(directionPopupChanged:);
+
+            /// Add to cell and layout next to the trigger text
+            [triggerCell addSubview:dirPopup];
+
+            /// Make the text field hug its content so the popup can sit right after it
+            [triggerCell.textField setContentHuggingPriority:NSLayoutPriorityRequired forOrientation:NSLayoutConstraintOrientationHorizontal];
+            [triggerCell.textField setContentCompressionResistancePriority:NSLayoutPriorityRequired forOrientation:NSLayoutConstraintOrientationHorizontal];
+            /// Remove any existing trailing constraint on text field
+            for (NSLayoutConstraint *c in triggerCell.constraints) {
+                if (c.firstItem == triggerCell.textField && c.firstAttribute == NSLayoutAttributeTrailing) {
+                    c.active = NO;
+                }
+                if (c.secondItem == triggerCell.textField && c.secondAttribute == NSLayoutAttributeTrailing) {
+                    c.active = NO;
+                }
+            }
+
+            [NSLayoutConstraint activateConstraints:@[
+                [dirPopup.leadingAnchor constraintEqualToAnchor:triggerCell.textField.trailingAnchor constant:4],
+                [dirPopup.centerYAnchor constraintEqualToAnchor:triggerCell.centerYAnchor],
+                [dirPopup.widthAnchor constraintEqualToConstant:90],
+            ]];
+        }
+    }
+
     /// Return view!
     return triggerCell;
-    
+
 }
 
 @end

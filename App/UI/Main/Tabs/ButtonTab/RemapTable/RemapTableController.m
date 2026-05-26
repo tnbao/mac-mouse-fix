@@ -142,7 +142,23 @@
             NSPopUpButton *pb = cell.subviews[0];
             NSDictionary *effectDictForSelected = [RemapTableTranslator getEffectDictBasedOnSelectedItemInButton:pb rowDict:self.dataModel[row]];
             /// Write effect dict to data model
-            self.dataModel[row][kMFRemapsKeyEffect] = effectDictForSelected;
+            if (effectDictForSelected != nil) {
+                self.dataModel[row][kMFRemapsKeyEffect] = effectDictForSelected;
+            }
+
+            /// Store direction from direction popup (in trigger column, for scroll/drag rows)
+            NSInteger triggerCol = [self.tableView columnWithIdentifier:@"trigger"];
+            NSTableCellView *triggerCell = [self.tableView viewAtColumn:triggerCol row:rowGrouped makeIfNecessary:NO];
+            NSPopUpButton *dirPopup = [triggerCell viewWithTag:1001]; /// kDirectionPopupTag
+            if (dirPopup) {
+                NSString *direction = dirPopup.selectedItem.representedObject;
+                NSMutableDictionary *mutableRow = (NSMutableDictionary *)self.dataModel[row];
+                if (direction) {
+                    mutableRow[kMFRemapsKeyDirection] = direction;
+                } else {
+                    [mutableRow removeObjectForKey:kMFRemapsKeyDirection];
+                }
+            }
         } else {
             assert(false);
         }
@@ -157,6 +173,49 @@
     
     /// Write datamodel to file
     [self writeDataModelToConfig];
+}
+
+- (IBAction)directionPopupChanged:(NSPopUpButton *)sender {
+    /// Called when user changes the direction dropdown for scroll/drag triggers
+
+    /// Find the row containing this direction popup (in trigger column)
+    NSInteger triggerColumnIndex = [self.tableView columnWithIdentifier:@"trigger"];
+    NSInteger clickedRow = -1;
+    for (NSInteger row = 0; row < self.tableView.numberOfRows; row++) {
+        NSTableCellView *cell = [self.tableView viewAtColumn:triggerColumnIndex row:row makeIfNecessary:NO];
+        if (cell == nil) continue;
+        NSPopUpButton *dirPopup = [cell viewWithTag:1001]; /// kDirectionPopupTag
+        if (dirPopup == sender) {
+            clickedRow = row;
+            break;
+        }
+    }
+    if (clickedRow == -1) return;
+
+    /// Convert to base data model index
+    NSInteger baseRow = [RemapTableUtility baseDataModelIndexFromGroupedDataModelIndex:clickedRow withGroupedDataModel:self.groupedDataModel];
+
+    /// Get new direction
+    NSString *direction = sender.selectedItem.representedObject;
+    NSMutableDictionary *rowDict = (NSMutableDictionary *)self.dataModel[baseRow];
+
+    /// Store direction
+    if (direction) {
+        rowDict[kMFRemapsKeyDirection] = direction;
+    } else {
+        [rowDict removeObjectForKey:kMFRemapsKeyDirection];
+    }
+
+    /// Reset effect to first item of the new effects table (since available effects change with direction)
+    NSArray *newEffectsTable = [RemapTableTranslator getEffectsTableForRemapsTableEntry:rowDict];
+    NSDictionary *firstEffectDict = newEffectsTable[0][@"dict"];
+    if (firstEffectDict) {
+        rowDict[kMFRemapsKeyEffect] = firstEffectDict;
+    }
+
+    /// Write to config and reload table
+    [self writeDataModelToConfig];
+    [self.tableView reloadData];
 }
 
 - (IBAction)updateTableAndWriteToConfig:(id _Nullable)sender {
@@ -584,17 +643,19 @@ static void updateBorderColor(RemapTableController *object, BOOL isInitialAppear
     /// ((Check if payload is valid tableEntry))
     
     /// Check if already in table
-    NSIndexSet *existingIndexes = [self.groupedDataModel indexesOfObjectsPassingTest:^BOOL(NSDictionary * _Nonnull tableEntry, NSUInteger idx, BOOL * _Nonnull stop) {
-        BOOL triggerMatches = [tableEntry[kMFRemapsKeyTrigger] isEqualTo:rowDictToAdd[kMFRemapsKeyTrigger]];
-        BOOL modificationPreconditionMatches = [tableEntry[kMFRemapsKeyModificationPrecondition] isEqualTo:rowDictToAdd[kMFRemapsKeyModificationPrecondition]];
-        return triggerMatches && modificationPreconditionMatches;
-    }];
-    NSAssert(existingIndexes.count <= 1, @"Duplicate remap triggers found in table");
+    NSIndexSet *existingIndexes = [NSIndexSet indexSet]; /// Don't check for duplicates — allow multiple rows with same trigger
     NSIndexSet *toHighlightIndexSet;
     if (existingIndexes.count == 0) {
         /// Fill out effect in payload with first effect from effects table (to make behaviour appropriate when user doesn't choose any effect)
         ///      We could also consider removing the tableEntry, if the user just dismisses the popup menu without choosing an effect, instead of this.
-        rowDictToAdd[kMFRemapsKeyEffect] = [RemapTableTranslator getEffectsTableForRemapsTableEntry:rowDictToAdd][0][@"dict"];
+        NSDictionary *defaultEffect = [RemapTableTranslator getEffectsTableForRemapsTableEntry:rowDictToAdd][0][@"dict"];
+        if (defaultEffect) {
+            rowDictToAdd[kMFRemapsKeyEffect] = defaultEffect;
+        } else {
+            /// For scroll/drag triggers with keyboard-shortcut-only effects table, there's no default dict.
+            /// Set an empty dict as placeholder - the popup will auto-open for user to choose.
+            rowDictToAdd[kMFRemapsKeyEffect] = @{};
+        }
         /// Add new row to data model
         self.dataModel = [self.dataModel arrayByAddingObject:rowDictToAdd];
         /// Sort data model
@@ -917,8 +978,18 @@ static void getTriggerValues(int *btn1, int *lvl1, NSString **dur1, NSString **t
             return NSOrderedAscending;
         }
         
-        /// Can't order
-        assert(false);
+        /// Sort by direction (for scroll/drag entries with different directions)
+        {
+            NSString *dir1 = tableEntryMutable1[kMFRemapsKeyDirection];
+            NSString *dir2 = tableEntryMutable2[kMFRemapsKeyDirection];
+            NSArray *orderedDirections = @[@"up", @"down", @"left", @"right"];
+            NSInteger dirIdx1 = dir1 ? (NSInteger)[orderedDirections indexOfObject:dir1] : -1;
+            NSInteger dirIdx2 = dir2 ? (NSInteger)[orderedDirections indexOfObject:dir2] : -1;
+            if (dirIdx1 > dirIdx2) return NSOrderedDescending;
+            if (dirIdx1 < dirIdx2) return NSOrderedAscending;
+        }
+
+        /// Truly identical entries — just return same
         return NSOrderedSame;
     }];
     [self.tableView setSortDescriptors:@[sd]];
